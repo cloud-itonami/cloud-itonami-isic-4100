@@ -1,0 +1,12 @@
+{:itonami.blueprint/id "cloud-itonami-4100"
+ :itonami.blueprint/name "Community Building Construction"
+ :itonami.blueprint/isic-rev5 "4100"
+ :itonami.blueprint/domain :construction/buildings
+ :itonami.blueprint/license "AGPL-3.0-or-later"
+ :itonami.blueprint/social-impact [:housing-access :worker-safety :local-industry]
+ :itonami.blueprint/governor :building-construction-governor
+ :itonami.blueprint/robotics true
+ :itonami.blueprint/required-technologies [:robotics :identity :forms :dmn :bpmn :audit-ledger :cae]
+ :itonami.blueprint/optional-technologies [:optimization :telemetry]
+ :itonami.blueprint/status :public-oss
+ :itonami.blueprint/maturity :blueprint}
