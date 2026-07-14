@@ -9,4 +9,7 @@
  :itonami.blueprint/required-technologies [:robotics :identity :forms :dmn :bpmn :audit-ledger :cae]
  :itonami.blueprint/optional-technologies [:optimization :telemetry]
  :itonami.blueprint/status :public-oss
- :itonami.blueprint/maturity :blueprint}
+ :itonami.blueprint/maturity :implemented
+ :itonami.blueprint/implemented-slice "site operations coordination (trade dispatch, progress logging, safety hazard flagging, inspection scheduling)"
+ :itonami.blueprint/repo "https://github.com/cloud-itonami/cloud-itonami-isic-4100"
+ :itonami.blueprint/business-id "isic-4100"}
