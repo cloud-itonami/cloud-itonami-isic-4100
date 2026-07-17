@@ -41,9 +41,9 @@
     <h1>Community Building Construction</h1>
     <div class="badge">ISIC 4100 · maturity implemented</div>
     <div class="pitch">
-      <p>Open Business Blueprint for ISIC 4100: construction of buildings — the *housing* (住) vertical of the 衣食住 scaffold batch (ADR-2607122200). Complements the existing civil-engineering and finishing satellites (4211 / 4321 / 4322) by covering the missing buildings class itself.</p>
-      <p>Maturity: :blueprint — this repository publishes the business blueprint only. There is no actor implementation yet, and none is claimed. ISIC section F sits in rollout Wave 3 (production/robotics) of the reverse-toposort plan (ADR-2607121000): implementation is gated on the robotics premise (ADR-2607011000). Publishing the blueprint now is deliberate ammunition loading for when that gate opens (ADR-2607122100 Track A).</p>
-      <p>BuildOps-LLM ⊣ Building Construction Governor — the fleet-standard pattern: the advisor LLM drafts project intake, permit-workflow assembly (jurisdiction-specific building codes), schedule/BOM coordination via the existing procurement shape (yoro-supply Pregel cells), and inspection planning; the independent :building-construction-governor (a keyword unique fleet-wide) gates every action; physical-domain work (excavation, framing, lifting, finishing) is executed by robots under kotoba-lang/robotics safety classes — worker/site safety actions are always :safety-critical and require human sign-off, never dispatched directly by the LLM.</p>
+      <p><strong>Problem:</strong> Building construction teams need AI-assisted coordination without surrendering control. Every action—from scheduling to inspections—demands human oversight, especially for worker safety.</p>
+      <p><strong>Solution:</strong> An independent Governor gates every decision. The LLM advises (intake, permits, schedules, inspections); the Governor enforces safety-critical actions. No action bypasses human review.</p>
+      <p><strong>Not:</strong> A black-box AI system. This is open-source, forkable, and runs on your infrastructure—AGPL-3.0 licensed.</p>
     </div>
     <p class="meta">Domain <code>construction/buildings</code> · Governor <code>building-construction-governor</code> · License <code>AGPL-3.0-or-later</code></p>
     <div class="cta">

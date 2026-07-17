@@ -2,6 +2,10 @@
 
 Shortest path from clone to a verified local dry-run for **ISIC 4100** (`cloud-itonami-isic-4100`).
 
+## Who this is for
+
+**Building construction operators, site coordinators, and safety managers** who want to run an open-source, locally-controlled coordination platform. You own the data, the Governor, and the deploy.
+
 ## Prerequisites
 
 - Clojure 1.12+ (`clojure --version`)
