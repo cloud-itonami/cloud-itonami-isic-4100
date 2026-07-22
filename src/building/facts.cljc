@@ -11,7 +11,7 @@
 
   Seed values are drawn from each jurisdiction's official building-code
   and construction-safety authorities (see `:provenance`); this is a
-  STARTING catalog (JPN/USA/DEU), not a from-scratch survey of all
+  STARTING catalog (JPN/USA/DEU/GBR), not a from-scratch survey of all
   ~194 jurisdictions. Extending coverage is additive: add one map to
   `catalog`, cite a real source, done -- never invent a jurisdiction's
   requirements to make coverage look bigger.
@@ -42,7 +42,12 @@
           :owner-authority "Bundesministerium für Wohnen, Stadtentwicklung und Bauwesen (BMWSB); Bauaufsichtsbehörden (state-level building authorities)"
           :legal-basis "Musterbauordnung (MBO, model building code) / Baustellenverordnung (construction sites directive) / Building codes at Bundesland level"
           :provenance "https://www.bauministerkonferenz.de/"
-          :note "Building regulation in Germany is administered at the Bundesland (state) level, each with its own Bauordnung based on the Musterbauordnung model. This actor coordinates site operations but does not issue building permits (Baugenehmigung) or occupancy certificates (exclusive to Bauaufsichtsbehörde)."}})
+          :note "Building regulation in Germany is administered at the Bundesland (state) level, each with its own Bauordnung based on the Musterbauordnung model. This actor coordinates site operations but does not issue building permits (Baugenehmigung) or occupancy certificates (exclusive to Bauaufsichtsbehörde)."}
+   "GBR" {:name "United Kingdom (England building-control framework)"
+          :owner-authority "Health and Safety Executive (HSE) -- Building Safety Regulator, for higher-risk buildings in England (Building Safety Act 2022 s.2(1), s.1(4)(a)); local authorities, for other building work (Building Act 1984 s.91, as amended)"
+          :legal-basis "Building Safety Act 2022 / Building Act 1984 (as amended) / Building Regulations 2010 (SI 2010/2214, as amended) / Construction (Design and Management) Regulations 2015 (SI 2015/51)"
+          :provenance "https://www.legislation.gov.uk/ukpga/2022/30/contents"
+          :note "Building Safety Act 2022 s.2(1) defines 'the regulator' (the Building Safety Regulator) as the Health and Safety Executive; per s.1(2)/(4)(a) its building-control-authority role for higher-risk buildings applies to buildings in England. For other building work, Building Act 1984 s.91 (as amended) places the duty to enforce building regulations on local authorities, with the regulator substituting only where later sections designate it the building control authority instead. Building Act 1984 s.1 is the enabling power for building regulations generally (design, construction and demolition of buildings); the current substantive requirements sit in the Building Regulations 2010 (SI 2010/2214) reg.4 (building work must comply with the applicable Schedule 1 requirements). Construction-site worker safety is separately regulated by the Construction (Design and Management) Regulations 2015 (SI 2015/51) reg.8 (general duties of designers/contractors), made under the Health and Safety at Work etc Act 1974 on proposals from HSE. Confirmed coverage here is England-specific: Building Safety Act 2022 s.1(4)(b) notes Wales runs a parallel register of building control approvers and building inspectors administered by the Welsh Ministers, and Scotland/Northern Ireland operate their own separate building-control legislation -- the Welsh, Scottish, and Northern Irish specifics have NOT been independently verified here and are not claimed by this entry (an honest gap, not a fabrication). This actor coordinates site operations under the England framework but does not certify compliance, grant building control approval, or complete a Gateway/registration decision (exclusive to the regulator, a local authority, or a building control approver)."}})
 
 (defn spec-basis
   "The jurisdiction's requirement map, or nil -- nil means NO spec-basis,
