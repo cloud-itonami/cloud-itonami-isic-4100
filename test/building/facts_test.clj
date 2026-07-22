@@ -5,9 +5,9 @@
 (deftest coverage-test
   (testing "coverage returns expected results"
     (let [cov (facts/coverage)]
-      (is (= 3 (:covered cov)))
-      (is (= 3 (:requested cov)))
-      (is (= ["DEU" "JPN" "USA"] (:covered-jurisdictions cov))))))
+      (is (= 4 (:covered cov)))
+      (is (= 4 (:requested cov)))
+      (is (= ["DEU" "GBR" "JPN" "USA"] (:covered-jurisdictions cov))))))
 
 (deftest spec-basis-test
   (testing "spec-basis returns catalog entry"
@@ -15,6 +15,13 @@
       (is (= "Japan" (:name jpn)))
       (is (contains? jpn :legal-basis))
       (is (contains? jpn :provenance))))
+  (testing "spec-basis returns GBR catalog entry"
+    (let [gbr (facts/spec-basis "GBR")]
+      (is (= "United Kingdom (England building-control framework)" (:name gbr)))
+      (is (contains? gbr :owner-authority))
+      (is (contains? gbr :legal-basis))
+      (is (contains? gbr :provenance))
+      (is (re-find #"Building Safety Act 2022" (:legal-basis gbr)))))
   (testing "spec-basis returns nil for unknown jurisdiction"
     (is (nil? (facts/spec-basis "ZZZ")))))
 
