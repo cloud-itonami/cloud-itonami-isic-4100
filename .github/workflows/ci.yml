@@ -46,6 +46,7 @@ jobs:
       - name: test
         working-directory: orgs/cloud-itonami/cloud-itonami-isic-4100
         run: clojure -M:dev:test
-      - name: demo runner (compiled StateGraph, end-to-end)
-        working-directory: orgs/cloud-itonami/cloud-itonami-isic-4100
-        run: clojure -M:dev:run
+      # No `demo runner` step here: deps.edn's :run alias points at
+      # building.sim, but src/building/ has no sim.cljc (pre-existing gap,
+      # unrelated to this CI addition) -- skipped rather than fabricating
+      # one under this fix's scope.
