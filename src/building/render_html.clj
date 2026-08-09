@@ -1,0 +1,336 @@
+(ns building.render-html
+  "Build-time HTML renderer for `docs/samples/operator-console.html`.
+
+  Closes flagship checklist item 2: this repo previously had no demo page
+  and no generator. This namespace drives the REAL actor stack
+  (`building.operation` -> `building.buildingadvisor` ->
+  `building.governor` -> `building.phase` -> `building.store`) through a
+  scenario built on the actually-seeded project ids in
+  `building.store/demo-data` (`proj-1`..`proj-4`), and renders whatever
+  the run produced.
+
+  EVERY id, number, disposition, hold rule and hold detail on the page is
+  read back out of real actor output -- the append-only store ledger
+  (`building.store/ledger`) and the `:audit` channel of each
+  `langgraph.graph/run*` result. Nothing on the page is hand-typed
+  domain data. The two derived tables are likewise real reads of the
+  repo's own code: the rollout-gate table calls `building.phase/gate`,
+  and the governor-rule table marks a rule 'exercised' only when that
+  rule name actually appears in a hold this run emitted.
+
+  Note this repo has no `building.sim` (the `:run` alias points at a
+  namespace that does not exist), so there was no prior demo driver to
+  adapt -- the scenario below was authored against the store directly.
+
+  DETERMINISTIC: the mock advisor is fixed, the store is seeded from a
+  literal, projects are sorted by id, and no timestamp or random value
+  is written into the page. Two consecutive runs are byte-identical
+  (verify by diffing them).
+
+  Usage: `clojure -M:dev:render-html [out-file]`
+  (default `docs/samples/operator-console.html`)."
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
+            [jp-go-dds.skin :as skin]
+            [building.governor :as governor]
+            [building.operation :as op]
+            [building.phase :as phase]
+            [building.store :as store]
+            [langgraph.graph :as g]))
+
+;; ----------------------------- the scenario -----------------------------
+
+(def ^:private operator
+  {:actor-id "op-1"
+   :actor-role :site-operations-coordinator
+   :phase phase/default-phase})
+
+(defn- exec! [actor tid request]
+  (g/run* actor {:request request :context operator} {:thread-id tid}))
+
+(defn- resume! [actor tid status]
+  (g/run* actor {:approval {:status status :by "op-1"}}
+          {:thread-id tid :resume? true}))
+
+(defn- step!
+  "Runs ONE operation through the real actor to its terminal state and
+  returns a record of what the actor actually did.
+
+  `approve` is nil when no human handoff is expected (a HARD hold or an
+  auto-commit), or :approved / :rejected for the human resume. When the
+  actor pauses (`interrupt-before #{:request-approval}` -> status
+  :interrupted) and `approve` is nil the run is left paused, which is
+  itself a real, renderable outcome."
+  [actor tid request approve]
+  (let [first-r (exec! actor tid request)
+        paused? (= :interrupted (:status first-r))
+        final-r (if (and paused? approve)
+                  (resume! actor tid approve)
+                  first-r)]
+    {:thread      tid
+     :op          (:op request)
+     :subject     (:subject request)
+     :paused?     paused?
+     :approval    (when paused? approve)
+     :status      (:status final-r)
+     :disposition (get-in final-r [:state :disposition])
+     :audit       (vec (get-in final-r [:state :audit]))}))
+
+(defn run-demo!
+  "Seeds a fresh store, builds the REAL OperationActor and executes a
+  scenario that reaches every disposition this actor can produce.
+
+  - `proj-1` runs a full clean lifecycle across all four ops: a progress
+    record and a trade dispatch AUTO-COMMIT (phase 3 lists both in its
+    `:auto` set), then a safety-hazard flag and an inspection-review
+    request each pause the graph for a human and commit once approved.
+  - `proj-4` auto-commits a progress record (clean, already
+    inspection-reviewed, no unresolved hazard).
+  - `proj-3` HARD-holds a trade dispatch: the store seeds it with an
+    unresolved `scaffold-stability` hazard, so
+    `:unresolved-safety-hazard` fires. This hold NEVER reaches a human --
+    the graph routes straight from :decide to :hold.
+  - `proj-99` is deliberately absent from the registry, so
+    `:project-not-registered` HARD-holds it. Also never reaches a human.
+  - `proj-2` shows the other side of the human gate: a governor-clean
+    inspection-review request escalates, and the human REJECTS it.
+
+  Returns {:store db :runs [..]} -- every field `render` reads is real
+  governor/phase/store output."
+  []
+  (let [db    (store/mem-store)
+        actor (op/build db)
+        ;; sequential on purpose: each step mutates the shared store.
+        r1 (step! actor "proj-1/progress"   {:op :log-progress-record      :subject "proj-1"} nil)
+        r2 (step! actor "proj-1/dispatch"   {:op :schedule-trade-dispatch  :subject "proj-1"} nil)
+        r3 (step! actor "proj-1/hazard"     {:op :flag-safety-hazard       :subject "proj-1"} :approved)
+        r4 (step! actor "proj-1/inspection" {:op :request-inspection-review :subject "proj-1"} :approved)
+        r5 (step! actor "proj-4/progress"   {:op :log-progress-record      :subject "proj-4"} nil)
+        r6 (step! actor "proj-3/dispatch"   {:op :schedule-trade-dispatch  :subject "proj-3"} nil)
+        r7 (step! actor "proj-99/progress"  {:op :log-progress-record      :subject "proj-99"} nil)
+        r8 (step! actor "proj-2/inspection" {:op :request-inspection-review :subject "proj-2"} :rejected)]
+    {:store db
+     :runs  [r1 r2 r3 r4 r5 r6 r7 r8]}))
+
+;; ----------------------------- rendering -----------------------------
+
+(defn- esc [v]
+  (-> (str v)
+      (str/replace "&" "&amp;")
+      (str/replace "<" "&lt;")
+      (str/replace ">" "&gt;")
+      (str/replace "\"" "&quot;")))
+
+(defn- kw [v]
+  (esc (if (keyword? v) (name v) v)))
+
+(defn- last-fact-for [ledger subject]
+  (last (filter #(= subject (:subject %)) ledger)))
+
+(defn- hold-rule [fact]
+  (or (-> fact :violations first :rule) (first (:basis fact))))
+
+(defn- decision-cell [ledger subject]
+  (let [f (last-fact-for ledger subject)]
+    (cond
+      (nil? f) "<span class=\"muted\">no activity</span>"
+      (= :committed (:t f)) "<span class=\"ok\">committed</span>"
+      (= :governor-hold (:t f))
+      (str "<span class=\"critical\">HARD hold &middot; " (kw (hold-rule f)) "</span>")
+      (= :human-rejected (:t f)) "<span class=\"warn\">human rejected</span>"
+      :else (str "<span class=\"muted\">" (kw (:t f)) "</span>"))))
+
+(defn- trades-cell [trades]
+  (if (seq trades)
+    (str/join ", " (map #(str (esc (:name %)) " &times;" (esc (:crew-size %))) trades))
+    "<span class=\"muted\">&mdash;</span>"))
+
+(defn- hazards-cell [hazards]
+  (if (seq hazards)
+    (str "<span class=\"critical\">"
+         (str/join ", " (map #(str (esc (:type %)) " (" (esc (:id %)) ")") hazards))
+         "</span>")
+    "<span class=\"muted\">none</span>"))
+
+(defn- project-row [ledger {:keys [id name jurisdiction unresolved-hazards trades]}]
+  (format "        <tr><td><code>%s</code></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
+          (esc id) (esc name) (esc jurisdiction)
+          (trades-cell trades)
+          (hazards-cell unresolved-hazards)
+          (decision-cell ledger id)))
+
+(defn- run-row [{:keys [thread op subject paused? approval status disposition audit]}]
+  (format "        <tr><td><code>%s</code></td><td><code>%s</code></td><td><code>%s</code></td><td>%s</td><td>%s</td><td>%s</td></tr>"
+          (esc thread) (kw op) (esc subject)
+          (cond
+            (and paused? approval)
+            (str "<span class=\"warn\">paused &rarr; human " (kw approval) "</span>")
+            paused? "<span class=\"warn\">paused, awaiting human</span>"
+            :else "<span class=\"muted\">no human handoff</span>")
+          (case disposition
+            :commit "<span class=\"ok\">commit</span>"
+            :hold "<span class=\"critical\">hold</span>"
+            :escalate "<span class=\"warn\">escalate</span>"
+            (str "<span class=\"muted\">" (kw (or disposition status)) "</span>"))
+          (str/join " &rarr; " (map #(str "<code>" (kw (:t %)) "</code>") audit))))
+
+(defn- ledger-row [{:keys [t op subject basis violations summary disposition]}]
+  (format "        <tr><td>%s</td><td><code>%s</code></td><td><code>%s</code></td><td>%s</td></tr>"
+          (case t
+            :committed "<span class=\"ok\">committed</span>"
+            :governor-hold "<span class=\"critical\">governor-hold</span>"
+            :human-rejected "<span class=\"warn\">human-rejected</span>"
+            (str "<span class=\"muted\">" (kw t) "</span>"))
+          (kw op) (esc subject)
+          (cond
+            (seq violations)
+            (str/join "; " (map #(str "<code>" (kw (:rule %)) "</code> &mdash; " (esc (:detail %)))
+                                violations))
+            (seq basis) (str/join ", " (map #(str "<code>" (kw %) "</code>") basis))
+            summary (esc summary)
+            disposition (str "<span class=\"muted\">disposition <code>"
+                             (kw disposition) "</code>, no governor basis &mdash; refused by a human</span>")
+            :else "")))
+
+(defn- gate-row
+  "One row of the rollout-gate table, derived by actually CALLING
+  `building.phase/gate` -- not by describing it."
+  [ph op]
+  (let [{:keys [disposition reason]} (phase/gate ph {:op op} :commit)
+        stakes? (contains? governor/high-stakes op)]
+    (format "        <tr><td><code>%s</code></td><td>%s</td><td>%s</td><td>%s</td></tr>"
+            (kw op)
+            (case disposition
+              :commit "<span class=\"ok\">auto-commit</span>"
+              :escalate "<span class=\"warn\">human approval</span>"
+              :hold "<span class=\"critical\">hold</span>"
+              (kw disposition))
+            (if reason (str "<code>" (kw reason) "</code>") "<span class=\"muted\">&mdash;</span>")
+            (if stakes?
+              "<span class=\"warn\">yes &mdash; never auto at any phase</span>"
+              "<span class=\"muted\">no</span>"))))
+
+(def ^:private governor-rule-catalog
+  "The HARD rules `building.governor/check` concatenates, in its own
+  order. This is a description of the rule SET (the governor keeps no
+  runtime registry to read it from); the 'exercised' column beside it is
+  real -- it is computed from the holds this run actually emitted."
+  [[:project-not-registered    "operation on a project absent from the registry"]
+   [:effect-not-propose        "proposal whose effect is not :propose"]
+   [:certification-attempt     "attempt to certify safety / occupancy / code compliance"]
+   [:unresolved-safety-hazard  "project carries an unresolved safety hazard"]
+   [:already-flagged-hazard    "same hazard flagged twice on one project"]
+   [:no-legal-basis            "proposal with no official legal-basis citation"]])
+
+(defn- rule-row [exercised [rule blurb]]
+  (format "        <tr><td><code>%s</code></td><td>%s</td><td>%s</td></tr>"
+          (kw rule) (esc blurb)
+          (if (contains? exercised rule)
+            "<span class=\"critical\">yes &mdash; HARD-held this run</span>"
+            "<span class=\"muted\">not reached by this scenario</span>")))
+
+(defn render
+  "Renders the whole operator-console document from the result of
+  `run-demo!` (or any other real run of this actor)."
+  [{:keys [runs] :as demo}]
+  (let [db        (:store demo)
+        ledger    (vec (store/ledger db))
+        projects  (store/all-projects db)
+        exercised (into #{} (keep hold-rule (filter #(= :governor-hold (:t %)) ledger)))
+        ph        phase/default-phase
+        ph-label  (get-in phase/phases [ph :label])
+        holds     (count (filter #(= :governor-hold (:t %)) ledger))
+        commits   (count (filter #(= :committed (:t %)) ledger))]
+    (str
+     "<!DOCTYPE html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\">"
+     "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">"
+     "<meta name=\"color-scheme\" content=\"light\"><meta name=\"theme-color\" content=\"#ffffff\">"
+     "<title>cloud-itonami-isic-4100 &middot; construction of buildings &mdash; Operator Console</title>"
+     "<style>" (skin/dds+skin) "</style></head>\n<body>\n"
+     "<header class=\"bar\">\n"
+     "  <h1>Construction of buildings (ISIC 4100) &mdash; Operator Console</h1>\n"
+     "  <span class=\"badge\">read-only sample &middot; governor-gated &middot; hazard flagging &amp; inspection review always human-approved</span>\n"
+     "</header>\n"
+     "<main>\n"
+
+     "  <section class=\"card\">\n"
+     "    <h2>Construction projects</h2>\n"
+     "    <p class=\"muted\">Live snapshot of <code>building.store</code> after the demo scenario, generated at build time by <code>building.render-html</code> (<code>clojure -M:dev:render-html</code>). "
+     "Rollout phase <span class=\"num\">" ph "</span> (<code>" (esc ph-label) "</code>); actor <code>" (esc (:actor-id operator)) "</code>. "
+     "The last-decision column is read from the append-only ledger, not asserted here.</p>\n"
+     "    <table>\n"
+     "      <thead><tr><th>Project</th><th>Name</th><th>Jurisdiction</th><th>Trades (crew)</th><th>Unresolved hazards</th><th>Last decision</th></tr></thead>\n"
+     "      <tbody>\n"
+     (str/join "\n" (map (partial project-row ledger) projects)) "\n"
+     "      </tbody>\n"
+     "    </table>\n"
+     "  </section>\n"
+
+     "  <section class=\"card\">\n"
+     "    <h2>Rollout gate (phase " ph " &mdash; " (esc ph-label) ")</h2>\n"
+     "    <p class=\"muted\">Each row is produced by calling <code>building.phase/gate</code> with a governor-clean <code>:commit</code>. "
+     "<code>:flag-safety-hazard</code> and <code>:request-inspection-review</code> are absent from every phase&#39;s <code>:auto</code> set &mdash; a permanent structural fact, not a phase-3 accident.</p>\n"
+     "    <table>\n"
+     "      <thead><tr><th>Op</th><th>Governor-clean commit becomes</th><th>Reason</th><th>Always human?</th></tr></thead>\n"
+     "      <tbody>\n"
+     (str/join "\n" (map (partial gate-row ph) (sort-by name phase/write-ops))) "\n"
+     "      </tbody>\n"
+     "    </table>\n"
+     "  </section>\n"
+
+     "  <section class=\"card\">\n"
+     "    <h2>Governor rules (Building Governor)</h2>\n"
+     "    <p class=\"muted\">All six are HARD: a human approver cannot override them, and the graph routes a HARD hold from <code>:decide</code> straight to <code>:hold</code> without ever offering it to a person. "
+     "This run HARD-held <span class=\"num\">" holds "</span> operation(s) and committed <span class=\"num\">" commits "</span>. "
+     "Why the rest are not exercised, precisely: <code>effect-not-propose</code>, <code>certification-attempt</code> and <code>no-legal-basis</code> are decided entirely by the proposal, and the default <code>building.buildingadvisor/mock-advisor</code> only ever emits one fixed governor-clean proposal, so no scenario can reach them without swapping the advisor; "
+     "<code>already-flagged-hazard</code> is a different case &mdash; it needs a non-empty hazard-flag history, which nothing currently writes (see the footer). "
+     "Of those four, <code>effect-not-propose</code> and <code>certification-attempt</code> are covered by <code>test/building/governor_test.clj</code>; <code>no-legal-basis</code> and <code>already-flagged-hazard</code> are covered by neither this scenario nor the test suite &mdash; a real gap, recorded rather than hidden.</p>\n"
+     "    <table>\n"
+     "      <thead><tr><th>Rule</th><th>Blocks</th><th>Exercised in this run</th></tr></thead>\n"
+     "      <tbody>\n"
+     (str/join "\n" (map (partial rule-row exercised) governor-rule-catalog)) "\n"
+     "      </tbody>\n"
+     "    </table>\n"
+     "  </section>\n"
+
+     "  <section class=\"card\">\n"
+     "    <h2>Actor runs (this scenario)</h2>\n"
+     "    <p class=\"muted\">One row per <code>langgraph.graph/run*</code> thread. The trail column is that run&#39;s <code>:audit</code> channel verbatim. "
+     "A paused run is a real interrupt: <code>interrupt-before #{:request-approval}</code> stops the graph before the approval node and only a human resume restarts it.</p>\n"
+     "    <table>\n"
+     "      <thead><tr><th>Thread</th><th>Op</th><th>Subject</th><th>Human handoff</th><th>Disposition</th><th>Audit trail</th></tr></thead>\n"
+     "      <tbody>\n"
+     (str/join "\n" (map run-row runs)) "\n"
+     "      </tbody>\n"
+     "    </table>\n"
+     "  </section>\n"
+
+     "  <section class=\"card\">\n"
+     "    <h2>Audit ledger (append-only)</h2>\n"
+     "    <p class=\"muted\">Every commit and every rejection this scenario wrote to <code>building.store/ledger</code>, in order.</p>\n"
+     "    <table>\n"
+     "      <thead><tr><th>Fact</th><th>Op</th><th>Project</th><th>Basis</th></tr></thead>\n"
+     "      <tbody>\n"
+     (str/join "\n" (map ledger-row ledger)) "\n"
+     "      </tbody>\n"
+     "    </table>\n"
+     "  </section>\n"
+
+     "  <footer>\n"
+     "    <p>Regenerate with <code>clojure -M:dev:render-html</code>. Deterministic: no timestamp or random value is written into this page, so two consecutive runs are byte-identical.</p>\n"
+     "    <p>Known gap, stated honestly: <code>building.store/commit-record!</code> matches on <code>:hazard</code>/<code>:inspection</code> path heads while <code>building.operation</code> supplies the op keyword, so a committed operation does not yet patch <code>:hazard-flagged?</code> / <code>:inspection-reviewed?</code> or append to the hazard-flag / inspection-review histories. The project columns above therefore show seeded store state. Nothing on this page papers over that.</p>\n"
+     "  </footer>\n"
+     "</main>\n</body>\n</html>\n")))
+
+(defn -main [& args]
+  (let [out  (or (first args) "docs/samples/operator-console.html")
+        demo (run-demo!)
+        db   (:store demo)
+        html (render demo)]
+    (io/make-parents out)
+    (spit out html)
+    (println "wrote" out
+             (str "(" (count (store/ledger db)) " ledger facts, "
+                  (count (:runs demo)) " actor runs, "
+                  (count (filter #(= :governor-hold (:t %)) (store/ledger db)))
+                  " HARD holds)"))))
