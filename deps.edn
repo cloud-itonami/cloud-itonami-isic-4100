@@ -2,7 +2,13 @@
  ;; :local/root paths only resolve inside the monorepo checkout -- a
  ;; standalone fork should override them with git coordinates.
  :deps {io.github.com-junkawasaki/langgraph-clj
-        {:local/root "../../kotoba-lang/langgraph"}}
+        {:local/root "../../kotoba-lang/langgraph"}
+        ;; workspace BASE design system (デジタル庁デザインシステム). Used by
+        ;; `building.render-html` to style the generated operator console;
+        ;; pinned by sha, same coordinate the sibling isic consoles use.
+        io.github.kotoba-lang/jp-go-digital-design-system
+        {:git/url "https://github.com/kotoba-lang/jp-go-digital-design-system"
+         :git/sha "83db99546eabc53613ae826ea41d1533a3c574af"}}
  :aliases
  {;; offline workspace dev -- pin transitive langchain-clj to local checkout
   :dev {:override-deps
@@ -10,6 +16,10 @@
          {:local/root "../../kotoba-lang/langchain"}}}
   ;; clojure -M:dev:run  -> drive the demo through one OperationActor
   :run {:main-opts ["-m" "building.sim"]}
+  ;; clojure -M:dev:render-html [out-file] -> regenerate
+  ;; docs/samples/operator-console.html by really executing the actor
+  ;; (flagship checklist item 2).
+  :render-html {:main-opts ["-m" "building.render-html"]}
   :test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner
                       {:git/tag "v0.5.1" :git/sha "dfb30dd"}}

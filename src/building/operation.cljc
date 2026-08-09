@@ -115,12 +115,15 @@
              :audit [{:t :human-rejected :op (:op request) :subject (:subject request)}]})))
 
       ;; Commit the proposal and fact to the audit ledger.
+      ;; Returns {} -- the `:audit` channel reducer is `into`, so
+      ;; re-emitting the already-accumulated audit would append the
+      ;; whole trail to itself and double every fact.
       (g/add-node :commit
-        (fn [{:keys [request context proposal record disposition audit]}]
+        (fn [{:keys [request context proposal record]}]
           (when record
             (store/commit-record! store record))
           (store/append-ledger! store (commit-fact request context proposal))
-          {:audit audit}))
+          {}))
 
       ;; Router: governor disposition -> next node.
       (g/add-conditional-edges :decide
@@ -137,16 +140,32 @@
             :hold :hold
             :commit :commit)))
 
-      ;; Terminal nodes.
-      (g/add-node :hold (fn [s] s))
+      ;; Terminal HOLD -- write the rejection to the append-only ledger
+      ;; so `building.store`'s documented contract ("which operation was
+      ;; proposed, approved/REJECTED ... is always a query over an
+      ;; immutable log") actually holds. No SSoT mutation. Returns {}
+      ;; for the same `into`-reducer reason as :commit above.
+      (g/add-node :hold
+        (fn [{:keys [audit]}]
+          (when-let [hf (last (filter #(#{:governor-hold :human-rejected} (:t %)) audit))]
+            (store/append-ledger! store (assoc hf :disposition :hold)))
+          {}))
 
-      ;; Finish.
-      (g/add-edge :commit :end)
-      (g/add-edge :hold :end)
+      ;; Finish. `:commit` and `:hold` are the two terminal nodes; both
+      ;; edge straight to langgraph's END sentinel (`g/set-finish-point`).
       (g/add-edge :intake :advise)
       (g/add-edge :advise :govern)
       (g/add-edge :govern :decide)
 
       (g/set-entry-point :intake)
-      (g/set-finish-point :end)
-      (g/compile {:checkpointer checkpointer})))
+      (g/set-finish-point :commit)
+      (g/set-finish-point :hold)
+
+      ;; `interrupt-before #{:request-approval}` is what makes the
+      ;; approval handoff a REAL pause: the run stops with
+      ;; `:status :interrupted` before the node executes, and only a
+      ;; human resume (`{:approval {:status :approved}}`) lets it
+      ;; proceed. Without it the node would run immediately with a nil
+      ;; approval and silently reject every escalation.
+      (g/compile-graph {:checkpointer     checkpointer
+                        :interrupt-before #{:request-approval}})))
