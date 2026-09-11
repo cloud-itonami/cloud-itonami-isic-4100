@@ -2471,7 +2471,7 @@ img,svg { max-width: 100%; height: auto; }</style></head>
 <main>
   <section class="card">
     <h2>Construction projects</h2>
-    <p class="muted">Live snapshot of <code>building.store</code> after the demo scenario, generated at build time by <code>building.render-html</code> (<code>clojure -M:dev:render-html</code>). Rollout phase <span class="num">3</span> (<code>supervised-auto</code>); actor <code>op-1</code>. The last-decision column is read from the append-only ledger, not asserted here.</p>
+    <p class="muted">Live snapshot of <code>building.store</code> after the demo scenario, generated at build time by <code>building.render-html</code> (<code>kbb -M:dev:render-html</code>). Rollout phase <span class="num">3</span> (<code>supervised-auto</code>); actor <code>op-1</code>. The last-decision column is read from the append-only ledger, not asserted here.</p>
     <table>
       <thead><tr><th>Project</th><th>Name</th><th>Jurisdiction</th><th>Trades (crew)</th><th>Unresolved hazards</th><th>Last decision</th></tr></thead>
       <tbody>
@@ -2545,7 +2545,7 @@ img,svg { max-width: 100%; height: auto; }</style></head>
     </table>
   </section>
   <footer>
-    <p>Regenerate with <code>clojure -M:dev:render-html</code>. Deterministic: no timestamp or random value is written into this page, so two consecutive runs are byte-identical.</p>
+    <p>Regenerate with <code>kbb -M:dev:render-html</code>. Deterministic: no timestamp or random value is written into this page, so two consecutive runs are byte-identical.</p>
     <p>Known gap, stated honestly: <code>building.store/commit-record!</code> matches on <code>:hazard</code>/<code>:inspection</code> path heads while <code>building.operation</code> supplies the op keyword, so a committed operation does not yet patch <code>:hazard-flagged?</code> / <code>:inspection-reviewed?</code> or append to the hazard-flag / inspection-review histories. The project columns above therefore show seeded store state. Nothing on this page papers over that.</p>
   </footer>
 </main>

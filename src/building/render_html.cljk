@@ -27,7 +27,7 @@
   is written into the page. Two consecutive runs are byte-identical
   (verify by diffing them).
 
-  Usage: `clojure -M:dev:render-html [out-file]`
+  Usage: `kbb -M:dev:render-html [out-file]`
   (default `docs/samples/operator-console.html`)."
   (:require [clojure.java.io :as io]
             [kotoba.lang.text :as str]
@@ -255,7 +255,7 @@
 
      "  <section class=\"card\">\n"
      "    <h2>Construction projects</h2>\n"
-     "    <p class=\"muted\">Live snapshot of <code>building.store</code> after the demo scenario, generated at build time by <code>building.render-html</code> (<code>clojure -M:dev:render-html</code>). "
+     "    <p class=\"muted\">Live snapshot of <code>building.store</code> after the demo scenario, generated at build time by <code>building.render-html</code> (<code>kbb -M:dev:render-html</code>). "
      "Rollout phase <span class=\"num\">" ph "</span> (<code>" (esc ph-label) "</code>); actor <code>" (esc (:actor-id operator)) "</code>. "
      "The last-decision column is read from the append-only ledger, not asserted here.</p>\n"
      "    <table>\n"
@@ -317,7 +317,7 @@
      "  </section>\n"
 
      "  <footer>\n"
-     "    <p>Regenerate with <code>clojure -M:dev:render-html</code>. Deterministic: no timestamp or random value is written into this page, so two consecutive runs are byte-identical.</p>\n"
+     "    <p>Regenerate with <code>kbb -M:dev:render-html</code>. Deterministic: no timestamp or random value is written into this page, so two consecutive runs are byte-identical.</p>\n"
      "    <p>Known gap, stated honestly: <code>building.store/commit-record!</code> matches on <code>:hazard</code>/<code>:inspection</code> path heads while <code>building.operation</code> supplies the op keyword, so a committed operation does not yet patch <code>:hazard-flagged?</code> / <code>:inspection-reviewed?</code> or append to the hazard-flag / inspection-review histories. The project columns above therefore show seeded store state. Nothing on this page papers over that.</p>\n"
      "  </footer>\n"
      "</main>\n</body>\n</html>\n")))
