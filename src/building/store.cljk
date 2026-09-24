@@ -21,7 +21,7 @@
   The ledger stays append-only: 'which operation was proposed,
   approved/rejected, on what jurisdictional basis, approved by whom' is
   always a query over an immutable log."
-  (:require #?(:clj  [clojure.edn :as edn]
+  (:require #?(:clj  [kotoba.lang.edn :as edn]
                :cljs [cljs.reader :as edn])
             [langchain.db :as d]))
 
