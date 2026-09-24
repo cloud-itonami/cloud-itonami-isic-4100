@@ -1,5 +1,5 @@
 (ns building.phase-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [building.phase :as phase]))
 
 (deftest phases-structure-test

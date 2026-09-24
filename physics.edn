@@ -1,0 +1,43 @@
+;; What this vertical's robot physically does, declared for
+;; kotoba.robotics.process (kotoba-lang/robotics). `kbb -M:dev:physics` runs it.
+;;
+;; README: construction of buildings (ISIC 4100); structural and finishing
+;; work is executed by robots under kotoba-lang/robotics safety. The physical
+;; work: a block-laying arm placing masonry units on the wall, a site
+;; carrier hauling pallets of blocks up the site ramp, and the separating
+;; concrete wall it builds having to resist a standard fire.
+;;
+;; Every number without a cited source is marked `estimate` in its :basis.
+;; Replacing an estimate with a sourced value is this bot's growth work.
+{:physics/schema "itonami.physical-ai.spec.v1"
+ :repo "cloud-itonami/cloud-itonami-isic-4100"
+ :cases
+ [{:id :lay-masonry-block
+   :kind :manipulator
+   :procedure "block-laying arm lifts a masonry unit from the feed pallet and sets it on the mortar bed of the course being laid"
+   :params {:l1-m 1.00 :l2-m 0.80 :m1-kg 25.0 :m2-kg 15.0
+            :from [1.20 0.00] :to [0.60 1.10] :duration-s 3.0 :steps 500}
+   :sweep {:param :payload-kg :values [2.5 5.0 10.0 15.0 20.0]}
+   :quantity :peak-tau1-nm
+   :limit {:max 700.0 :basis "estimate: continuous shoulder torque of a ~20 kg-payload industrial arm with a 1.8 m reach"}
+   :boundary {:lo 0.5 :hi 80.0}}
+  {:id :block-pallet-up-site-ramp
+   :kind :transport
+   :procedure "tracked site carrier hauls a pallet of concrete blocks 40 m up the 5-degree site ramp to the working deck"
+   :params {:mass-kg 450.0 :distance-m 40.0 :v-max-mps 0.8 :a-max-mps2 0.3 :brake-decel-mps2 0.8
+            :drive-force-n 2500.0 :crr 0.06 :cog-height-m 0.40 :payload-cog-height-m 0.90
+            :support-half-length-m 0.55 :slope-deg 5.0 :max-time-s 1800.0}
+   :sweep {:param :payload-kg :values [200.0 400.0 600.0 800.0 1000.0]}
+   :quantity :cycle-time-s
+   :limit {:max 90.0 :basis "estimate: one ramp leg inside a 3-minute block-supply cycle that keeps the laying arm fed"}
+   :boundary {:lo 50.0 :hi 1500.0}}
+  {:id :separating-wall-fire
+   :kind :thermal
+   :procedure "cast concrete separating wall is exposed to the ISO 834 standard fire on one face; the unexposed face must stay below a 140 K mean rise"
+   :params {:conductivity-w-mk 1.6 :density-kg-m3 2300.0 :specific-heat-j-kgk 1000.0
+            :t0-c 20.0 :hot-curve :iso-834 :h-front-w-m2k 25.0 :t-back-ambient-c 20.0 :h-back-w-m2k 9.0
+            :threshold-c 160.0 :duration-s 18000.0 :nodes 21}
+   :sweep {:param :thickness-m :values [0.06 0.08 0.10 0.12 0.15]}
+   :quantity :time-to-threshold-s
+   :limit {:min 3600.0 :basis "estimate: a 60-minute separating-wall rating is assumed (the real requirement comes from the local building code); the 140 K mean unexposed-face rise is the ISO 834-1 insulation criterion. Dry concrete: moisture evaporation is not modelled, so this is conservative"}
+   :boundary {:lo 0.04 :hi 0.15}}]}

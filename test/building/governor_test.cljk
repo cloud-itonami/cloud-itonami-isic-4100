@@ -1,5 +1,5 @@
 (ns building.governor-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [building.governor :as governor]
             [building.store :as store]))
 
