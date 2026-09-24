@@ -1,5 +1,5 @@
 (ns building.facts-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [building.facts :as facts]))
 
 (deftest coverage-test
