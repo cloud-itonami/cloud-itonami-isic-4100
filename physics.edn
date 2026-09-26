@@ -4,8 +4,9 @@
 ;; README: construction of buildings (ISIC 4100); structural and finishing
 ;; work is executed by robots under kotoba-lang/robotics safety. The physical
 ;; work: a block-laying arm placing masonry units on the wall, a site
-;; carrier hauling pallets of blocks up the site ramp, and the separating
-;; concrete wall it builds having to resist a standard fire.
+;; carrier hauling pallets of blocks up the site ramp, the separating
+;; concrete wall it builds having to resist a standard fire, and the
+;; concrete pump's discharge hose delivering pumped concrete to the formwork.
 ;;
 ;; Every number without a cited source is marked `estimate` in its :basis.
 ;; Replacing an estimate with a sourced value is this bot's growth work.
@@ -40,4 +41,12 @@
    :sweep {:param :thickness-m :values [0.06 0.08 0.10 0.12 0.15]}
    :quantity :time-to-threshold-s
    :limit {:min 3600.0 :basis "estimate: a 60-minute separating-wall rating is assumed (the real requirement comes from the local building code); the 140 K mean unexposed-face rise is the ISO 834-1 insulation criterion. Dry concrete: moisture evaporation is not modelled, so this is conservative"}
-   :boundary {:lo 0.04 :hi 0.15}}]}
+   :boundary {:lo 0.04 :hi 0.15}}
+  {:id :concrete-pump-discharge-hose
+   :kind :pipe-flow
+   :procedure "site concrete pump delivers pumped concrete through the discharge hose to the formwork, 12 m above the pump"
+   :params {:q-m3s 0.0467 :diameter-m 0.125 :length-m 30.0 :roughness-m 4.5e-4
+            :density-kg-m3 2350.0 :viscosity-pa-s 20.0 :pump-efficiency 0.55 :elevation-m 12.0}
+   :sweep {:param :q-m3s :values [0.0233 0.0347 0.0467 0.0602]}
+   :quantity :pump-power-w
+   :limit {:max 75000.0 :basis "estimate: a mobile concrete pump's 100 kW engine at 0.55 pump efficiency (shaft limit ~55 kW); 75 kW allows headroom for a 5% duty-cycle service factor"}}]}
